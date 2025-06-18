@@ -12,15 +12,17 @@ requests==2.31.0
 python-dotenv==1.0.1
 httpx==0.26.0
 pydantic==2.6.0
-aiohttp==3.9.3
 
-# ML dependencies
+# ML dependencies - using compatible versions
 scikit-learn>=1.4.0
-pillow==10.3.0
-pytesseract==0.3.10
 
 # Testing
 pytest==7.4.3
 
 # Using scikit-learn for vector similarity instead of faiss
 # faiss-cpu==1.8.0 removed due to build issues
+
+# Removed problematic packages that require compilation
+# pillow==10.3.0
+# pytesseract==0.3.10
+# aiohttp==3.9.3
