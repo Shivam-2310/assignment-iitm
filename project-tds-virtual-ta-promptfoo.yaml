@@ -1,0 +1,44 @@
+description: "IIT Madras TDS Virtual TA Evaluation"
+prompts:
+  - "Should I use gpt-4o-mini which AI proxy supports, or gpt3.5 turbo?"
+  - "When is the deadline for the GA5 assignment?"
+  - "How do I calculate token usage costs for the OpenAI API?"
+  - "What are the requirements for Question 8 in GA5?"
+  - "Is it necessary to include references in our assignment submission?"
+providers:
+  - id: tds-virtual-ta
+    config:
+      url: "https://your-deployed-api.com/api/"  # Replace with your actual deployed API URL
+      method: POST
+      headers:
+        Content-Type: application/json
+      body: '{ "question": "{{prompt}}" }'
+tests:
+  - description: "Test API Responses"
+    prompts:
+      - "Should I use gpt-4o-mini which AI proxy supports, or gpt3.5 turbo?"
+      - "When is the deadline for the GA5 assignment?"
+      - "How do I calculate token usage costs for the OpenAI API?"
+    providers: [tds-virtual-ta]
+    assert:
+      - type: javascript
+        value: |
+          const response = JSON.parse(output);
+          return typeof response === 'object' && 
+                 typeof response.answer === 'string' && 
+                 Array.isArray(response.links) &&
+                 response.answer.length > 0;
+  - description: "Test Response Time"
+    prompts:
+      - "What are the requirements for Question 8 in GA5?"
+      - "Is it necessary to include references in our assignment submission?"
+    providers: [tds-virtual-ta]
+    assert:
+      - type: javascript
+        value: |
+          return true;  # promptfoo automatically tracks response time
+    timeout: 30000  # 30 seconds
+output:
+  - fileName: results.json
+    format: json
+  - format: table

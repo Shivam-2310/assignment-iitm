@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: tds-virtual-ta
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: AUTH_USERNAME
+        sync: false
+      - key: AUTH_PASSWORD
+        sync: false
+      - key: DISCOURSE_API_KEY
+        sync: false
+      - key: DISCOURSE_API_USERNAME
+        sync: false
+    healthCheckPath: /
+    autoDeploy: true
