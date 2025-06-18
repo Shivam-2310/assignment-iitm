@@ -1,15 +1,17 @@
 import base64
 import os
-from io import BytesIO
 from typing import Optional
-from PIL import Image
-import pytesseract
-import tempfile
 
-# Set pytesseract path - adjust this if needed for your system
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'  # Uncomment and adjust for Windows
+# Try to import optional dependencies
+try:
+    from PIL import Image
+    from io import BytesIO
+    import pytesseract
+    IMAGING_AVAILABLE = True
+except ImportError:
+    IMAGING_AVAILABLE = False
 
-def process_image(base64_image: str) -> Optional[str]:
+def process_image(base64_image: str) -> str:
     """
     Process a base64 encoded image using OCR to extract text.
     
@@ -17,8 +19,13 @@ def process_image(base64_image: str) -> Optional[str]:
         base64_image: Base64 encoded image string
     
     Returns:
-        Extracted text from the image, or None if processing failed
+        Extracted text from the image, or a message if processing failed
     """
+    # Check if imaging libraries are available
+    if not 'IMAGING_AVAILABLE' in globals() or not IMAGING_AVAILABLE:
+        print("Image processing is not available - PIL or pytesseract not installed")
+        return "[Image processing not available in this deployment]"
+        
     try:
         # Remove potential data URL prefix
         if ',' in base64_image:
@@ -28,25 +35,16 @@ def process_image(base64_image: str) -> Optional[str]:
         image_data = base64.b64decode(base64_image)
         
         # Open image using PIL
-        with Image.open(BytesIO(image_data)) as img:
-            # Create a temporary file to save the image
-            # This can help with processing larger images
-            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as temp:
-                temp_filename = temp.name
-                img.save(temp_filename)
-            
-            try:
-                # Use pytesseract to extract text
-                text = pytesseract.image_to_string(temp_filename)
-                return text.strip()
-            finally:
-                # Clean up the temporary file
-                if os.path.exists(temp_filename):
-                    os.remove(temp_filename)
+        image = Image.open(BytesIO(image_data))
+        
+        # Use pytesseract to extract text
+        text = pytesseract.image_to_string(image)
+        
+        return text.strip()
                     
     except Exception as e:
         print(f"Error processing image: {str(e)}")
-        return None
+        return f"[Error processing image: {str(e)}]"
 
 # Test function
 def test_image_processing():

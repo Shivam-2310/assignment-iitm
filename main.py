@@ -9,7 +9,22 @@ import json
 from dotenv import load_dotenv
 import time
 from contextlib import asynccontextmanager
-import asyncio
+
+# Try to import asyncio/aiohttp, but provide fallbacks if not available
+try:
+    import asyncio
+except ImportError:
+    # Create a minimal asyncio mock for basic functionality
+    class AsyncioMock:
+        @staticmethod
+        async def create_task(coro):
+            return await coro
+            
+        @staticmethod
+        async def wait_for(coro, timeout):
+            return await coro
+            
+    asyncio = AsyncioMock()
 
 # Import our modules
 from src.scraper import init_scrapers, scrape_discourse, scrape_course_content
