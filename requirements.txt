@@ -1,30 +1,32 @@
-# Core dependencies with compatible versions for Python 3.13.4
+# Core dependencies with pre-built wheels
 fastapi==0.109.0
-uvicorn==0.27.0
+uvicorn[standard]==0.27.0
 python-multipart==0.0.6
 
-# Use numpy 2.0.0 which is compatible with Python 3.13.4
-numpy>=2.0.0
+# Numeric and scientific computing with pre-built wheels
+numpy==2.0.0
+scipy==1.13.1  # Required by scikit-learn
 
-# Web and API dependencies
+# Web and API dependencies with specific versions
 beautifulsoup4==4.12.2
 requests==2.31.0
 python-dotenv==1.0.1
 httpx==0.26.0
-pydantic==2.6.0
 
-# ML dependencies - using compatible versions
-scikit-learn>=1.4.0
+# Pydantic with pre-built wheels
+pydantic>=2.5.0,<3.0.0
+pydantic-core>=2.14.0,<3.0.0
+pydantic-settings>=2.0.0,<3.0.0
+
+# ML dependencies with pre-built wheels
+scikit-learn==1.4.1.post1  # Specific version with pre-built wheels
+joblib>=1.2.0  # Required by scikit-learn
+threadpoolctl>=2.2.0  # Required by scikit-learn
 
 aiohttp==3.9.3
 
 # Testing
 pytest==7.4.3
 
-# Using scikit-learn for vector similarity instead of faiss
-# faiss-cpu==1.8.0 removed due to build issues
-
-# Removed problematic packages that require compilation
-# pillow==10.3.0
-# pytesseract==0.3.10
-# aiohttp==3.9.3
+# Using scikit-learn for vector similarity
+# All packages below use pre-built wheels to avoid compilation
