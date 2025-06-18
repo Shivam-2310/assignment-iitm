@@ -1,7 +1,8 @@
+setuptools>=68.0.0
+wheel>=0.40.0
 fastapi==0.109.0
 uvicorn==0.27.0
 python-multipart==0.0.6
-faiss-cpu==1.8.0
 numpy==1.24.3
 beautifulsoup4==4.12.2
 requests==2.31.0
@@ -13,3 +14,5 @@ aiohttp==3.9.3
 scikit-learn==1.3.0
 pillow==10.3.0
 pytesseract==0.3.10
+# Using scikit-learn for vector similarity instead of faiss
+# faiss-cpu==1.8.0 removed due to build issues

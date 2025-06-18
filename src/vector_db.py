@@ -1,13 +1,12 @@
 import os
 import json
 import pickle
+import sys
+import re
 from typing import List, Dict, Any, Optional
 import numpy as np
-import time
-import sys
-from collections import Counter
-import re
-import hashlib
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Use scikit-learn instead of sentence-transformers
 try:
@@ -20,16 +19,6 @@ except ImportError as e:
     print("pip install scikit-learn")
     sys.exit(1)
 
-try:
-    print("Importing faiss...")
-    import faiss
-    print("faiss imported successfully")
-except ImportError as e:
-    print(f"Error importing faiss: {e}")
-    print("Please make sure faiss-cpu is installed:")
-    print("pip install faiss-cpu")
-    sys.exit(1)
-
 class VectorDB:
     def __init__(self):
         # Storage for documents and their embeddings
@@ -37,8 +26,8 @@ class VectorDB:
         self.embeddings = []  # List to store vector embeddings
         self.metadata = []  # List to store metadata (source URL, type, etc.)
         
-        # FAISS index for fast similarity search (will be initialized when adding documents)
-        self.index = None
+        # Numpy array for embeddings (will be initialized when adding documents)
+        self.embeddings_array = None
         
         # Maximum context size for chunking documents
         self.max_chunk_size = 1000  # Characters (approximate)
@@ -135,81 +124,69 @@ class VectorDB:
                 temp_chunks.append(chunk)
                 
         try:
-            # Fit vectorizer on all texts at once if not already fitted
-            if not self.fitted and all_texts:
-                print(f"Fitting vectorizer on {len(all_texts)} documents")
-                self.vectorizer.fit(all_texts)
-                self.fitted = True
-                print("Vectorizer fitted successfully")
+            # Fit vectorizer on all document texts
+            all_texts = [doc['text'] for doc in chunked_docs]
+            self.vectorizer.fit(all_texts)
+            self.fitted = True
             
-            # Now process each chunk
-            for chunk in temp_chunks:
-                try:
-                    # Get embedding for the chunk
-                    embedding = self._get_embedding(chunk["text"])
-                    
-                    # Store document, embedding, and metadata
-                    self.documents.append(chunk["text"])
-                    self.embeddings.append(embedding)
-                    self.metadata.append(chunk["metadata"])
-                except Exception as e:
-                    print(f"Error embedding chunk: {e}")
-                    # Continue with other chunks
+            # Get embeddings for all texts
+            for i, doc in enumerate(chunked_docs):
+                embedding = self._get_embedding(doc['text'])
+                self.embeddings.append(embedding)
+                self.documents.append(doc['text'])
+                self.metadata.append(doc['metadata'])
             
-            # Build FAISS index with the embeddings
-            self._build_faiss_index()
+            # Convert embeddings to numpy array
+            self._build_embeddings_array()
             
         except Exception as e:
             print(f"Error fitting vectorizer or building index: {e}")
     
-    def _build_faiss_index(self):
-        """Build a FAISS index for fast similarity search."""
+    def _build_embeddings_array(self):
+        """Convert embeddings list to numpy array for similarity search."""
         if not self.embeddings:
             return
         
         try:
             # Convert embeddings to numpy array
-            embeddings_np = np.array(self.embeddings).astype('float32')
+            self.embeddings_array = np.array(self.embeddings).astype('float32')
             
             # Get the dimension of the embeddings
-            dimension = embeddings_np.shape[1]
+            dimension = self.embeddings_array.shape[1]
             
-            # Create a new index - using L2 distance
-            self.index = faiss.IndexFlatL2(dimension)
-            
-            # Add the vectors to the index
-            self.index.add(embeddings_np)
-            
-            print(f"Built FAISS index with {len(self.embeddings)} vectors of dimension {dimension}")
+            print(f"Built embeddings array with {len(self.embeddings)} vectors of dimension {dimension}")
         except Exception as e:
-            print(f"Error building FAISS index: {e}")
+            print(f"Error building embeddings array: {e}")
     
     def similarity_search(self, query: str, top_k: Optional[int] = None) -> List[Dict[str, Any]]:
-        """Search for documents similar to the query."""
+        """Search for documents similar to the query using cosine similarity."""
         try:
-            if not self.documents or self.index is None:
-                print("No documents or index available for search")
+            if not self.documents or self.embeddings_array is None:
+                print("No documents or embeddings available for search")
                 return []
             
             if top_k is None:
                 top_k = self.top_k
             
             # Get query embedding
-            query_embedding = np.array([self._get_embedding(query)]).astype('float32')
+            query_embedding = np.array([self._get_embedding(query)])
             
-            # Use FAISS for fast similarity search
-            distances, indices = self.index.search(query_embedding, top_k)
+            # Use cosine similarity for search
+            similarities = cosine_similarity(query_embedding, self.embeddings_array)[0]
+            
+            # Get indices of top-k most similar documents
+            top_indices = similarities.argsort()[-top_k:][::-1]
             
             results = []
-            for i, idx in enumerate(indices[0]):
-                # Skip if idx is -1 (means not enough results found)
-                if idx == -1:
+            for idx in top_indices:
+                # Only include results with positive similarity
+                if similarities[idx] <= 0:
                     continue
                     
                 results.append({
                     "content": self.documents[idx],
                     "metadata": self.metadata[idx],
-                    "score": 1.0 - distances[0][i] / 100.0  # Convert distance to a similarity score
+                    "score": float(similarities[idx])  # Convert to float for JSON serialization
                 })
             
             print(f"Found {len(results)} similar documents")
@@ -235,9 +212,10 @@ class VectorDB:
         with open(os.path.join(directory, "metadata.pkl"), "wb") as f:
             pickle.dump(self.metadata, f)
         
-        # Save FAISS index if it exists
-        if self.index is not None:
-            faiss.write_index(self.index, os.path.join(directory, "faiss_index.bin"))
+        # Save embeddings array if it exists
+        if self.embeddings_array is not None:
+            with open(os.path.join(directory, "embeddings_array.pkl"), "wb") as f:
+                pickle.dump(self.embeddings_array, f)
     
     def load(self, directory: str):
         """Load the vector database from disk."""
@@ -253,11 +231,12 @@ class VectorDB:
         with open(os.path.join(directory, "metadata.pkl"), "rb") as f:
             self.metadata = pickle.load(f)
         
-        # Load FAISS index if it exists
-        faiss_index_path = os.path.join(directory, "faiss_index.bin")
-        if os.path.exists(faiss_index_path):
-            self.index = faiss.read_index(faiss_index_path)
+        # Load embeddings array if it exists
+        embeddings_array_path = os.path.join(directory, "embeddings_array.pkl")
+        if os.path.exists(embeddings_array_path):
+            with open(embeddings_array_path, "rb") as f:
+                self.embeddings_array = pickle.load(f)
         else:
-            # If no saved index, but we have embeddings, build the index
+            # If no saved array, but we have embeddings, build the array
             if self.embeddings:
-                self._build_faiss_index()
+                self._build_embeddings_array()
